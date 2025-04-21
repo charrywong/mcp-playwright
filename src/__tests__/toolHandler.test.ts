@@ -1,4 +1,4 @@
-import { handleToolCall, getConsoleLogs, getScreenshots } from '../toolHandler.js';
+import { handleToolCall, getConsoleLogs, getScreenshots, registerConsoleMessage } from '../toolHandler.js';
 import { Browser, Page, chromium, firefox, webkit } from 'playwright';
 import { jest } from '@jest/globals';
 
@@ -49,7 +49,8 @@ jest.mock('playwright', () => {
     on: mockOn,
     frames: mockFrames,
     locator: mockLocator,
-    isClosed: mockIsClosed
+    isClosed: mockIsClosed,
+    addInitScript: jest.fn()
   };
 
   const mockNewPage = jest.fn().mockImplementation(() => Promise.resolve(mockPage));
@@ -290,4 +291,81 @@ describe('Tool Handler', () => {
     const screenshots = getScreenshots();
     expect(screenshots instanceof Map).toBe(true);
   });
-}); 
+
+  describe('registerConsoleMessage', () => {
+    let mockPage: any;
+
+    beforeEach(() => {
+      mockPage = {
+        on: jest.fn(),
+        addInitScript: jest.fn()
+      };
+
+      // clean console logs
+      const logs = getConsoleLogs();
+      logs.length = 0;
+    });
+
+    test('should handle console messages of different types', async () => {
+      await handleToolCall('playwright_navigate', { url: 'about:blank' }, mockServer);
+
+      // Setup mock handlers
+      const mockHandlers: Record<string, jest.Mock> = {};
+      mockPage.on.mockImplementation((event: string, handler: (arg: any) => void) => {
+        mockHandlers[event] = jest.fn(handler);
+      });
+
+      await registerConsoleMessage(mockPage);
+
+      // Test log message
+      mockHandlers['console']({
+        type: jest.fn().mockReturnValue('log'),
+        text: jest.fn().mockReturnValue('test log message')
+      });
+
+      // Test error message
+      mockHandlers['console']({
+        type: jest.fn().mockReturnValue('error'),
+        text: jest.fn().mockReturnValue('test error message')
+      });
+
+      // Test page error
+      const mockError = new Error('test error');
+      mockError.stack = 'test stack';
+      mockHandlers['pageerror'](mockError);
+
+      const logs = getConsoleLogs();
+      expect(logs).toEqual([
+        '[log] test log message',
+        '[error] test error message',
+        '[exception] test error\ntest stack'
+      ]);
+    });
+
+    test('should handle unhandled promise rejection with detailed info', async () => {
+      await handleToolCall('playwright_navigate', { url: 'about:blank' }, mockServer);
+
+      mockPage.on.mockImplementation((event: string, handler: (arg: any) => void) => {
+        if (event === 'console') {
+          handler({
+            type: jest.fn().mockReturnValue('error'),
+            text: jest.fn().mockReturnValue(
+              '[Playwright][Unhandled Rejection In Promise] test rejection\n' +
+              'Error: Something went wrong\n' +
+              '    at test.js:10:15'
+            )
+          });
+        }
+      });
+
+      await registerConsoleMessage(mockPage);
+
+      const logs = getConsoleLogs();
+      expect(logs).toEqual([
+        '[exception] [Unhandled Rejection In Promise] test rejection\n' +
+        'Error: Something went wrong\n' +
+        '    at test.js:10:15'
+      ]);
+    });
+  });
+});

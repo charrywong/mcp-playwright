@@ -187,8 +187,8 @@ export function createToolDefinitions() {
         properties: {
           type: {
             type: "string",
-            description: "Type of logs to retrieve (all, error, warning, log, info, debug)",
-            enum: ["all", "error", "warning", "log", "info", "debug"]
+            description: "Type of logs to retrieve (all, error, warning, log, info, debug, exception)",
+            enum: ["all", "error", "warning", "log", "info", "debug", "exception"]
           },
           search: {
             type: "string",

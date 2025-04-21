@@ -108,6 +108,46 @@ interface BrowserSettings {
   browserType?: 'chromium' | 'firefox' | 'webkit';
 }
 
+async function registerConsoleMessage(page) {
+  page.on("console", (msg) => {
+    if (consoleLogsTool) {
+      const type = msg.type();
+      const text = msg.text();
+
+      // "Unhandled Rejection In Promise" we injected
+      if (text.startsWith("[Playwright]")) {
+        const payload = text.replace("[Playwright]", "");
+        consoleLogsTool.registerConsoleMessage("exception", payload);
+      } else {
+        consoleLogsTool.registerConsoleMessage(type, text);
+      }
+    }
+  });
+
+  // Uncaught exception
+  page.on("pageerror", (error) => {
+    if (consoleLogsTool) {
+      const message = error.message;
+      const stack = error.stack || "";
+      consoleLogsTool.registerConsoleMessage("exception", `${message}\n${stack}`);
+    }
+  });
+
+  // Unhandled rejection in promise
+  await page.addInitScript(() => {
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event.reason;
+      const message = typeof reason === "object" && reason !== null
+          ? reason.message || JSON.stringify(reason)
+          : String(reason);
+
+      const stack = reason?.stack || "";
+      // Use console.error get "Unhandled Rejection In Promise"
+      console.error(`[Playwright][Unhandled Rejection In Promise] ${message}\n${stack}`);
+    });
+  });
+}
+
 /**
  * Ensures a browser is launched and returns the page
  */
@@ -178,11 +218,7 @@ async function ensureBrowser(browserSettings?: BrowserSettings) {
       page = await context.newPage();
 
       // Register console message handler
-      page.on("console", (msg) => {
-        if (consoleLogsTool) {
-          consoleLogsTool.registerConsoleMessage(msg.type(), msg.text());
-        }
-      });
+      await registerConsoleMessage(page);
     }
     
     // Verify page is still valid
@@ -193,11 +229,7 @@ async function ensureBrowser(browserSettings?: BrowserSettings) {
       page = await context.newPage();
       
       // Re-register console message handler
-      page.on("console", (msg) => {
-        if (consoleLogsTool) {
-          consoleLogsTool.registerConsoleMessage(msg.type(), msg.text());
-        }
-      });
+      await registerConsoleMessage(page);
     }
     
     return page!;
@@ -252,11 +284,7 @@ async function ensureBrowser(browserSettings?: BrowserSettings) {
 
     page = await context.newPage();
     
-    page.on("console", (msg) => {
-      if (consoleLogsTool) {
-        consoleLogsTool.registerConsoleMessage(msg.type(), msg.text());
-      }
-    });
+    await registerConsoleMessage(page);
     
     return page!;
   }
@@ -584,4 +612,6 @@ export function getConsoleLogs(): string[] {
  */
 export function getScreenshots(): Map<string, string> {
   return screenshotTool?.getScreenshots() ?? new Map();
-} 
+}
+
+export { registerConsoleMessage };
