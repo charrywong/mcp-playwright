@@ -8,6 +8,7 @@ export const BROWSER_TOOLS = [
   "playwright_screenshot",
   "playwright_click",
   "playwright_iframe_click",
+  "playwright_iframe_fill",
   "playwright_fill",
   "playwright_select",
   "playwright_hover",

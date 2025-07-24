@@ -8,8 +8,8 @@ import { setupRequestHandlers } from "./requestHandler.js";
 async function runServer() {
   const server = new Server(
     {
-      name: "executeautomation/playwright-mcp-server",
-      version: "1.0.3",
+      name: "playwright-mcp",
+      version: "1.0.6",
     },
     {
       capabilities: {
@@ -24,6 +24,19 @@ async function runServer() {
 
   // Setup request handlers
   setupRequestHandlers(server, TOOLS);
+
+  // Graceful shutdown logic
+  function shutdown() {
+    console.log('Shutdown signal received');
+    process.exit(0);
+  }
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('exit', shutdown);
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+  });
 
   // Create transport and connect
   const transport = new StdioServerTransport();

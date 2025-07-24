@@ -66,6 +66,26 @@ export class IframeClickTool extends BrowserToolBase {
 }
 
 /**
+ * Tool for filling elements inside iframes
+ */
+export class IframeFillTool extends BrowserToolBase {
+  /**
+   * Execute the iframe fill tool
+   */
+  async execute(args: any, context: ToolContext): Promise<ToolResponse> {
+    return this.safeExecute(context, async (page) => {
+      const frame = page.frameLocator(args.iframeSelector);
+      if (!frame) {
+        return createErrorResponse(`Iframe not found: ${args.iframeSelector}`);
+      }
+      
+      await frame.locator(args.selector).fill(args.value);
+      return createSuccessResponse(`Filled element ${args.selector} inside iframe ${args.iframeSelector} with: ${args.value}`);
+    });
+  }
+}
+
+/**
  * Tool for filling form fields
  */
 export class FillTool extends BrowserToolBase {
@@ -109,6 +129,22 @@ export class HoverTool extends BrowserToolBase {
       await page.waitForSelector(args.selector);
       await page.hover(args.selector);
       return createSuccessResponse(`Hovered ${args.selector}`);
+    });
+  }
+}
+
+/**
+ * Tool for uploading files
+ */
+export class UploadFileTool extends BrowserToolBase {
+  /**
+   * Execute the upload file tool
+   */
+  async execute(args: any, context: ToolContext): Promise<ToolResponse> {
+    return this.safeExecute(context, async (page) => {
+        await page.waitForSelector(args.selector);
+        await page.setInputFiles(args.selector, args.filePath);
+        return createSuccessResponse(`Uploaded file '${args.filePath}' to '${args.selector}'`);
     });
   }
 }

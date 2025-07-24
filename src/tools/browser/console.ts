@@ -13,7 +13,8 @@ export class ConsoleLogsTool extends BrowserToolBase {
    * @param text The text content of the message
    */
   registerConsoleMessage(type: string, text: string): void {
-    this.consoleLogs.push(`[${type}] ${text}`);
+    const logEntry = `[${type}] ${text}`;
+    this.consoleLogs.push(logEntry);
   }
 
   /**

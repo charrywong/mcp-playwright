@@ -1,14 +1,22 @@
 <div align="center" markdown="1">
-   <sup>Special thanks to:</sup>
-   <br>
-   <br>
-   <a href="https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=mcp-playwright">
-      <img alt="Warp sponsorship" width="400" src="https://github.com/user-attachments/assets/ab8dd143-b0fd-4904-bdc5-dd7ecac94eae">
-   </a>
-
-### [Warp, the AI terminal for developers](https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=mcp-playwright)
-[Available for MacOS, Linux, & Windows](https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=mcp-playwright)<br>
-
+  <table>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://mseep.ai/app/executeautomation-mcp-playwright">
+          <img src="https://mseep.net/pr/executeautomation-mcp-playwright-badge.png" alt="MseeP.ai Security Assessment Badge" height="80"/>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=mcp-playwright">
+          <img alt="Warp sponsorship" width="200" src="https://github.com/user-attachments/assets/ab8dd143-b0fd-4904-bdc5-dd7ecac94eae"/>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center"><sub>MseeP.ai Security Assessment</sub></td>
+      <td align="center"><sub>Special thanks to <a href="https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=mcp-playwright">Warp, the AI terminal for developers</a></sub></td>
+    </tr>
+  </table>
 </div>
 <hr>
 
@@ -43,7 +51,7 @@ Using Smithery
 To install Playwright MCP for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@executeautomation/playwright-mcp-server):
 
 ```bash
-npx -y @smithery/cli install @executeautomation/playwright-mcp-server --client claude
+npx @smithery/cli install @executeautomation/playwright-mcp-server --client claude
 ```
 #### Installation in VS Code
 
@@ -57,6 +65,7 @@ const urlForWebsites = `vscode:mcp/install?${encodeURIComponent(config)}`;
 const urlForGithub = `https://insiders.vscode.dev/redirect?url=${encodeURIComponent(urlForWebsites)}`;
 -->
 
+[<img src="https://img.shields.io/badge/VS_Code-VS_Code?style=flat-square&label=Install%20Server&color=0098FF" alt="Install in VS Code">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522playwright%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522%2540executeautomation%252Fplaywright-mcp-server%2522%255D%257D) 
 [<img alt="Install in VS Code Insiders" src="https://img.shields.io/badge/VS_Code_Insiders-VS_Code_Insiders?style=flat-square&label=Install%20Server&color=24bfa5">](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522playwright%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522%2540executeautomation%252Fplaywright-mcp-server%2522%255D%257D)
 
 Alternatively, you can install the Playwright MCP server using the VS Code CLI:
@@ -106,6 +115,20 @@ npm run test:custom    # Run tests with custom script (same as node run-tests.cj
 ```
 
 The test coverage report will be generated in the `coverage` directory.
+
+### Running evals
+
+The evals package loads an mcp client that then runs the index.ts file, so there is no need to rebuild between tests. You can load environment variables by prefixing the npx command. Full documentation can be found [here](https://www.mcpevals.io/docs).
+
+```bash
+OPENAI_API_KEY=your-key  npx mcp-eval src/evals/evals.ts src/tools/codegen/index.ts
+```
+
+## Contributing
+
+When adding new tools, please be mindful of the tool name length. Some clients, like Cursor, have a 60-character limit for the combined server and tool name (`server_name:tool_name`).
+
+Our server name is `playwright-mcp`. Please ensure your tool names are short enough to not exceed this limit.
 
 ## Star History
 

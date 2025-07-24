@@ -25,7 +25,9 @@ import {
   FillTool,
   SelectTool,
   HoverTool,
-  EvaluateTool
+  EvaluateTool,
+  IframeFillTool,
+  UploadFileTool
 } from './tools/browser/interaction.js';
 import { 
   VisibleTextTool, 
@@ -73,9 +75,11 @@ let closeBrowserTool: CloseBrowserTool;
 let consoleLogsTool: ConsoleLogsTool;
 let clickTool: ClickTool;
 let iframeClickTool: IframeClickTool;
+let iframeFillTool: IframeFillTool;
 let fillTool: FillTool;
 let selectTool: SelectTool;
 let hoverTool: HoverTool;
+let uploadFileTool: UploadFileTool;
 let evaluateTool: EvaluateTool;
 let expectResponseTool: ExpectResponseTool;
 let assertResponseTool: AssertResponseTool;
@@ -151,7 +155,7 @@ async function registerConsoleMessage(page) {
 /**
  * Ensures a browser is launched and returns the page
  */
-async function ensureBrowser(browserSettings?: BrowserSettings) {
+export async function ensureBrowser(browserSettings?: BrowserSettings) {
   try {
     // Check if browser exists but is disconnected
     if (browser && !browser.isConnected()) {
@@ -196,7 +200,13 @@ async function ensureBrowser(browserSettings?: BrowserSettings) {
           break;
       }
       
-      browser = await browserInstance.launch({ headless });
+      const executablePath = process.env.CHROME_EXECUTABLE_PATH;
+
+      browser = await browserInstance.launch({
+        headless,
+        executablePath: executablePath
+      });
+      
       currentBrowserType = browserType;
 
       // Add cleanup logic when browser is disconnected
@@ -310,9 +320,11 @@ function initializeTools(server: any) {
   if (!consoleLogsTool) consoleLogsTool = new ConsoleLogsTool(server);
   if (!clickTool) clickTool = new ClickTool(server);
   if (!iframeClickTool) iframeClickTool = new IframeClickTool(server);
+  if (!iframeFillTool) iframeFillTool = new IframeFillTool(server);
   if (!fillTool) fillTool = new FillTool(server);
   if (!selectTool) selectTool = new SelectTool(server);
   if (!hoverTool) hoverTool = new HoverTool(server);
+  if (!uploadFileTool) uploadFileTool = new UploadFileTool(server);
   if (!evaluateTool) evaluateTool = new EvaluateTool(server);
   if (!expectResponseTool) expectResponseTool = new ExpectResponseTool(server);
   if (!assertResponseTool) assertResponseTool = new AssertResponseTool(server);
@@ -474,6 +486,9 @@ export async function handleToolCall(
         
       case "playwright_iframe_click":
         return await iframeClickTool.execute(args, context);
+
+      case "playwright_iframe_fill":
+        return await iframeFillTool.execute(args, context);
         
       case "playwright_fill":
         return await fillTool.execute(args, context);
@@ -483,6 +498,9 @@ export async function handleToolCall(
         
       case "playwright_hover":
         return await hoverTool.execute(args, context);
+
+      case "playwright_upload_file":
+        return await uploadFileTool.execute(args, context);
         
       case "playwright_evaluate":
         return await evaluateTool.execute(args, context);

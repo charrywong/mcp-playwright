@@ -4,8 +4,7 @@ sidebar_position: 1
 
 import YouTubeVideoEmbed from '@site/src/components/HomepageFeatures/YouTubeVideoEmbed';
 
-
-# 🛠️ Supported Tools
+# ��️ Supported Tools
 
 Playwright MCP for Browser automation has following key features
 - Console log monitoring
@@ -171,6 +170,17 @@ Click elements in an iframe on the page.
 
 ---
 
+### Playwright_iframe_fill
+Fill elements in an iframe on the page.
+
+- **`iframeSelector`** *(string)*:  
+  CSS selector for the iframe containing the element to fill.
+
+- **`selector`** *(string)*:  
+  CSS selector for the element to fill.
+
+---
+
 ### Playwright_hover
 Hover over elements on the page.
 
@@ -196,6 +206,17 @@ Select an element with the `SELECT` tag.
   CSS selector for the element to select.  
 - **`value`** *(string)*:  
   Value to select.
+
+---
+
+### playwright_upload_file
+Upload a file to an input[type='file'] element on the page.
+
+- **Inputs:**
+  - **`selector`** *(string, required)*:  
+    CSS selector for the file input element.
+  - **`filePath`** *(string, required)*:  
+    Absolute path to the file to upload.
 
 ---
 
@@ -283,9 +304,25 @@ Get the visible text content of the current page.
 ### playwright_get_visible_html
 Get the HTML content of the current page.
 
+- **Inputs:**
+  - **`selector`** *(string, optional)*:  
+    CSS selector to limit the HTML to a specific container. If provided, only returns the HTML for that element.
+  - **`removeScripts`** *(boolean, optional, default: false)*:  
+    Remove all script tags from the HTML to reduce noise.
+  - **`removeComments`** *(boolean, optional, default: false)*:  
+    Remove all HTML comments to clean up the output.
+  - **`removeStyles`** *(boolean, optional, default: false)*:  
+    Remove all style tags from the HTML.
+  - **`removeMeta`** *(boolean, optional, default: false)*:  
+    Remove all meta tags from the HTML head section.
+  - **`minify`** *(boolean, optional, default: false)*:  
+    Minify the HTML output by removing extra whitespace.
+  - **`cleanHtml`** *(boolean, optional, default: false)*:  
+    Convenience option that combines removeScripts, removeComments, removeStyles, and removeMeta for a cleaner HTML output.
+
 - **Response:**
   - **`content`** *(string)*:  
-    The complete HTML content of the current page.
+    The HTML content of the current page, optionally filtered based on the provided parameters.
 
 ---
 

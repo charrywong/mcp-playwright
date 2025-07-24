@@ -30,11 +30,12 @@ export function setupRequestHandlers(server: Server, tools: Tool[]) {
     const uri = request.params.uri.toString();
 
     if (uri === "console://logs") {
+      const logs = getConsoleLogs().join("\n");
       return {
         contents: [{
           uri,
           mimeType: "text/plain",
-          text: getConsoleLogs().join("\n"),
+          text: logs,
         }],
       };
     }
