@@ -193,3 +193,96 @@ export class VisibleHtmlTool extends BrowserToolBase {
     });
   }
 }
+
+export class VisibleTagTool extends BrowserToolBase {
+  /**
+   * Execute the VisibleTagTool to tag valid elements with data-tag-id
+   */
+  async execute(args: any, context: ToolContext): Promise<ToolResponse> {
+    if (!context.browser || !context.browser.isConnected()) {
+      resetBrowserState();
+      return createErrorResponse(
+          'Browser is not connected. The connection has been reset - please retry your navigation.'
+      );
+    }
+
+    if (!context.page || context.page.isClosed()) {
+      return createErrorResponse(
+          'Page is not available or has been closed. Please retry your navigation.'
+      );
+    }
+
+    return this.safeExecute(context, async (page) => {
+      const result = await page.evaluate(() => {
+        const excludedTags = new Set(['DIV', 'SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK']);
+        const iconKeywords = ['add', 'delete', 'edit', 'close', 'more'];
+        const results: Array<{ id: string; text: string }> = [];
+        let idCounter = 1; // 从 1 开始编号
+
+        const isInsideEditor = (el: Element): boolean => {
+          return el.closest('d-editor') !== null;
+        };
+
+        const getIconKeyword = (classList: DOMTokenList): string | null => {
+          for (const cls of classList) {
+            if (cls.startsWith('icon-')) {
+              for (const keyword of iconKeywords) {
+                if (cls.includes(keyword)) {
+                  return keyword;
+                }
+              }
+            }
+          }
+          return null;
+        };
+
+        const getDirectText = (el: Element): string | null => {
+          for (const node of Array.from(el.childNodes)) {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+              return node.textContent.trim().slice(0, 5);
+            }
+          }
+          return null;
+        };
+
+        const elements = document.querySelectorAll('body *');
+
+        elements.forEach((el: Element) => {
+          if (excludedTags.has(el.tagName)) return;
+          if (isInsideEditor(el)) return;
+
+          let markerText: string | null = null;
+
+          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
+            markerText = el.getAttribute('placeholder')?.trim() || null;
+          }
+
+          if (!markerText) {
+            markerText = getIconKeyword(el.classList);
+          }
+
+          if (!markerText) {
+            markerText = getDirectText(el);
+          }
+
+          if (!markerText) return;
+
+          const id = String(idCounter++);
+          el.setAttribute('data-tag-id', id);
+
+          results.push({ id, text: markerText });
+        });
+
+        return results;
+      });
+
+      // 返回格式简化：id:text
+      const resultStr = result.map(r => `${r.id}:${r.text}`).join('\n');
+
+      return createSuccessResponse([
+        `Tagged ${result.length} elements with data-tag-id`,
+        resultStr
+      ]);
+    });
+  }
+}

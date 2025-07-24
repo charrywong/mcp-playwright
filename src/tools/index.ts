@@ -16,7 +16,8 @@ export const BROWSER_TOOLS = [
   "playwright_console_logs",
   "playwright_close",
   "playwright_get_visible_text",
-  "playwright_get_visible_html"
+  "playwright_get_visible_html",
+  "playwright_get_visible_tag"
 ];
 
 export const API_TOOLS = [

@@ -309,7 +309,7 @@ Get the HTML content of the current page.
     CSS selector to limit the HTML to a specific container. If provided, only returns the HTML for that element.
   - **`removeScripts`** *(boolean, optional, default: false)*:  
     Remove all script tags from the HTML to reduce noise.
-  - **`removeComments`** *(boolean, optional, default: false)*:  
+  - **`removeComments`** *(boolean, optional, default: false)*:
     Remove all HTML comments to clean up the output.
   - **`removeStyles`** *(boolean, optional, default: false)*:  
     Remove all style tags from the HTML.
@@ -323,6 +323,31 @@ Get the HTML content of the current page.
 - **Response:**
   - **`content`** *(string)*:  
     The HTML content of the current page, optionally filtered based on the provided parameters.
+
+---
+
+### playwright_get_visible_tag
+Tag meaningful visible elements on the current page with `data-tag-id` attributes and return a compact list for model processing.
+
+- **Inputs:**
+  *(This tool does not accept any input parameters.)*
+
+- **Response:**
+  - **`content`** *(string)*:
+    A compact, line-separated list of tagged elements in the format: `data-tag-id:text`.
+    Each entry represents a visible and meaningful DOM element (e.g., buttons, inputs, icons with semantic meaning), where:
+    - `data-tag-id` is a unique incremental identifier starting from `1`, applied to the element as an attribute like `data-tag-id="1"`.
+    - `text` is a short label or description extracted from the element:
+      - For form fields: the `placeholder` value if available.
+      - For icons: a keyword from known icon classes (e.g., `add`, `edit`, `delete`).
+      - For regular elements: the first 5 characters of direct visible text.
+
+    Example:
+    ```
+    1:Search
+    2:Submit
+    3:Edit
+    ```
 
 ---
 

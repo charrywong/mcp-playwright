@@ -29,9 +29,9 @@ import {
   IframeFillTool,
   UploadFileTool
 } from './tools/browser/interaction.js';
-import { 
-  VisibleTextTool, 
-  VisibleHtmlTool 
+import {
+  VisibleTextTool,
+  VisibleHtmlTool, VisibleTagTool
 } from './tools/browser/visiblePage.js';
 import {
   GetRequestTool,
@@ -86,6 +86,7 @@ let assertResponseTool: AssertResponseTool;
 let customUserAgentTool: CustomUserAgentTool;
 let visibleTextTool: VisibleTextTool;
 let visibleHtmlTool: VisibleHtmlTool;
+let visibleTagTool: VisibleTagTool;
 
 let getRequestTool: GetRequestTool;
 let postRequestTool: PostRequestTool;
@@ -331,6 +332,7 @@ function initializeTools(server: any) {
   if (!customUserAgentTool) customUserAgentTool = new CustomUserAgentTool(server);
   if (!visibleTextTool) visibleTextTool = new VisibleTextTool(server);
   if (!visibleHtmlTool) visibleHtmlTool = new VisibleHtmlTool(server);
+  if (!visibleTagTool) visibleTagTool = new VisibleTagTool(server);
   
   // API tools
   if (!getRequestTool) getRequestTool = new GetRequestTool(server);
@@ -519,6 +521,9 @@ export async function handleToolCall(
       
       case "playwright_get_visible_html":
         return await visibleHtmlTool.execute(args, context);
+
+      case "playwright_get_visible_tag":
+        return await visibleTagTool.execute(args, context);
         
       // API tools
       case "playwright_get":

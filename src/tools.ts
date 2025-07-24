@@ -367,6 +367,15 @@ export function createToolDefinitions() {
       },
     },
     {
+      name: "playwright_get_visible_tag",
+      description: "Tag meaningful visible elements on the page by adding data-tag-id attributes. Returns a compact list of id:text entries for use by language models. This command does not accept any input parameters.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+    {
       name: "playwright_go_back",
       description: "Navigate back in browser history",
       inputSchema: {
@@ -464,6 +473,7 @@ export const BROWSER_TOOLS = [
   "playwright_custom_user_agent",
   "playwright_get_visible_text",
   "playwright_get_visible_html",
+  "playwright_get_visible_tag",
   "playwright_go_back",
   "playwright_go_forward",
   "playwright_drag",
