@@ -214,13 +214,22 @@ export class VisibleTagTool extends BrowserToolBase {
 
     return this.safeExecute(context, async (page) => {
       const result = await page.evaluate(() => {
-        const excludedTags = new Set(['DIV', 'SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK']);
+        const excludedTags = new Set(['SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK']);
+        const textIgnoreTags = new Set([])
         const iconKeywords = ['add', 'delete', 'edit', 'close', 'more'];
+        const blackListParentTags = ['d-editor', '.devui-header-app-extra-header', '.dp-first-header', '.dp-second-sidebar', '.devui-right-sidebar-menu'];
+        const whiteLiseParentTags = [];
+
         const results: Array<{ id: string; text: string }> = [];
         let idCounter = 1; // 从 1 开始编号
 
-        const isInsideEditor = (el: Element): boolean => {
-          return el.closest('d-editor') !== null;
+        const isInBlackListParentTags = (el: Element): boolean => {
+          return blackListParentTags.some(tag => el.closest(tag) !== null);
+        };
+
+        const notInWhiteLiseParentTags = (el: Element): boolean => {
+          if (whiteLiseParentTags.length === 0) return false;
+          return whiteLiseParentTags.every(tag => el.closest(tag) == null);
         };
 
         const getIconKeyword = (classList: DOMTokenList): string | null => {
@@ -237,11 +246,14 @@ export class VisibleTagTool extends BrowserToolBase {
         };
 
         const getDirectText = (el: Element): string | null => {
+          // 优先检查文本子节点
           for (const node of Array.from(el.childNodes)) {
             if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
               return node.textContent.trim().slice(0, 5);
             }
           }
+
+          // 两者都没有则返回null
           return null;
         };
 
@@ -249,12 +261,12 @@ export class VisibleTagTool extends BrowserToolBase {
 
         elements.forEach((el: Element) => {
           if (excludedTags.has(el.tagName)) return;
-          if (isInsideEditor(el)) return;
 
           let markerText: string | null = null;
 
-          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
-            markerText = el.getAttribute('placeholder')?.trim() || null;
+          markerText = el.getAttribute('placeholder')?.trim() || el.getAttribute('data-placeholder')?.trim() || null;
+          if (markerText) {
+            markerText = el.tagName + ':' + markerText;
           }
 
           if (!markerText) {
@@ -262,6 +274,9 @@ export class VisibleTagTool extends BrowserToolBase {
           }
 
           if (!markerText) {
+            if (textIgnoreTags.has(el.tagName)) return;
+            if (isInBlackListParentTags(el)) return;
+            if (notInWhiteLiseParentTags(el)) return;
             markerText = getDirectText(el);
           }
 
