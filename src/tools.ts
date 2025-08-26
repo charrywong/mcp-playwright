@@ -305,6 +305,17 @@ export function createToolDefinitions() {
       },
     },
     {
+      name: "playwright_expect_text",
+      description: "Ask Playwright to start waiting for a text content to appear on the page. This tool initiates the wait operation but does not wait for its completion.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "The exact text content expected to appear on the page." }
+        },
+        required: ["text"],
+      },
+    },
+    {
       name: "playwright_expect_response",
       description: "Ask Playwright to start waiting for a HTTP response. This tool initiates the wait operation but does not wait for its completion.",
       inputSchema: {
@@ -373,6 +384,20 @@ export function createToolDefinitions() {
         type: "object",
         properties: {},
         required: [],
+      },
+    },
+    {
+      name: "playwright_get_locator_by_tagid",
+      description: "Get a reliable Playwright locator string for an element that has been tagged with a data-tag-id attribute. This is typically used after calling playwright_get_visible_tag to get precise selectors for specific UI elements.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The data-tag-id value to locate (e.g. '11' for '11:新建')"
+          }
+        },
+        required: ["id"],
       },
     },
     {
@@ -452,6 +477,17 @@ export function createToolDefinitions() {
         required: ["selector"],
       },
     },
+    {
+      name: "playwright_run_script",
+      description: "Execute an external Playwright script (the file must export default a function)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          scriptPath: { type: "string", description: "Path to the external script (can be relative or absolute)" },
+        },
+        required: ["scriptPath"],
+      },
+    },
   ] as const satisfies Tool[];
 }
 
@@ -468,18 +504,21 @@ export const BROWSER_TOOLS = [
   "playwright_upload_file",
   "playwright_evaluate",
   "playwright_close",
+  "playwright_expect_text",
   "playwright_expect_response",
   "playwright_assert_response",
   "playwright_custom_user_agent",
   "playwright_get_visible_text",
   "playwright_get_visible_html",
   "playwright_get_visible_tag",
+  "playwright_get_locator_by_tagid",
   "playwright_go_back",
   "playwright_go_forward",
   "playwright_drag",
   "playwright_press_key",
   "playwright_save_as_pdf",
-  "playwright_click_and_switch_tab"
+  "playwright_click_and_switch_tab",
+  "playwright_run_script",
 ];
 
 // API Request tools for conditional launch

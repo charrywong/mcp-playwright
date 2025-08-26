@@ -72,6 +72,8 @@ export class PlaywrightGenerator {
         return this.generateClickStep(parameters);
       case 'playwright_screenshot':
         return this.generateScreenshotStep(parameters);
+      case 'playwright_expect_text':
+        return this.generateExpectTextStep(parameters);
       case 'playwright_expect_response':
         return this.generateExpectResponseStep(parameters);
       case 'playwright_assert_response':
@@ -127,6 +129,14 @@ export class PlaywrightGenerator {
     return `
     // Wait for response
     const ${id}Response = page.waitForResponse('${url}');`;
+  }
+
+  private generateExpectTextStep(parameters: Record<string, unknown>): string {
+    const { text } = parameters;
+    return `
+    // Wait for text
+    await page.waitForTimeout(1000);
+    await expect(page.getByText('${text}').first()).toBeVisible();`;
   }
 
   private generateAssertResponseStep(parameters: Record<string, unknown>): string {

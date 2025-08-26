@@ -263,6 +263,15 @@ Ask Playwright to start waiting for a HTTP response. This tool initiates the wai
 
 ---
 
+### Playwright_expect_text
+Ask Playwright to start waiting for a text content to appear on the page. This tool initiates the wait operation but does not wait for its completion.
+
+- **Inputs:**
+  - **`text`** *(string)*:
+    The exact text content expected to appear on the page.
+
+---
+
 ### Playwright_assert_response
 Wait for and validate a previously initiated HTTP response wait operation.
 
@@ -313,7 +322,7 @@ Get the HTML content of the current page.
     Remove all HTML comments to clean up the output.
   - **`removeStyles`** *(boolean, optional, default: false)*:  
     Remove all style tags from the HTML.
-  - **`removeMeta`** *(boolean, optional, default: false)*:  
+  - **`removeMeta`** *(boolean, optional, default: false)*:
     Remove all meta tags from the HTML head section.
   - **`minify`** *(boolean, optional, default: false)*:  
     Minify the HTML output by removing extra whitespace.
@@ -348,6 +357,29 @@ Tag meaningful visible elements on the current page with `data-tag-id` attribute
     2:Submit
     3:Edit
     ```
+
+---
+
+### playwright_get_locator_by_tagid
+Get a Playwright locator for an element identified by its data-tag-id attribute.
+
+- **Inputs:**
+  - **`id`** *(string)*: The data-tag-id value to locate (e.g. "11" for "11:新建")
+
+- **Response:**
+  - **`content`** *(array)*:
+    An array containing:
+    1. Description of the locator
+    2. The actual locator string (e.g. "text=\"新建\"")
+
+    The locator is generated using Playwright's selector generation logic to find the most reliable way to locate the element.
+
+- **Example Usage:**
+  After tagging elements with playwright_get_visible_tag, you can get precise locators for specific elements:
+  ```
+  Input: {"id": "11"}
+  Output: ["Tag element locator is:", "text=\"新建\""]
+  ```
 
 ---
 

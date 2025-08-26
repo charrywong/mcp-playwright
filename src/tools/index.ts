@@ -17,7 +17,8 @@ export const BROWSER_TOOLS = [
   "playwright_close",
   "playwright_get_visible_text",
   "playwright_get_visible_html",
-  "playwright_get_visible_tag"
+  "playwright_get_visible_tag",
+  "playwright_get_locator_by_tagid"
 ];
 
 export const API_TOOLS = [

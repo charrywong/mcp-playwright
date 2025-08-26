@@ -1,4 +1,4 @@
-import type { Browser, Page } from 'playwright';
+import type {Browser, BrowserContext, Page} from 'playwright';
 import { chromium, firefox, webkit, request } from 'playwright';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { BROWSER_TOOLS, API_TOOLS } from './tools.js';
@@ -10,14 +10,14 @@ import {
   getCodegenSession,
   clearCodegenSession
 } from './tools/codegen/index.js';
-import { 
+import {
   ScreenshotTool,
   NavigationTool,
   CloseBrowserTool,
   ConsoleLogsTool,
   ExpectResponseTool,
   AssertResponseTool,
-  CustomUserAgentTool
+  CustomUserAgentTool, RunScriptTool
 } from './tools/browser/index.js';
 import {
   ClickTool,
@@ -31,7 +31,7 @@ import {
 } from './tools/browser/interaction.js';
 import {
   VisibleTextTool,
-  VisibleHtmlTool, VisibleTagTool
+  VisibleHtmlTool, VisibleTagTool, ExpectTextTool, LocatorTool
 } from './tools/browser/visiblePage.js';
 import {
   GetRequestTool,
@@ -44,6 +44,7 @@ import { GoBackTool, GoForwardTool } from './tools/browser/navigation.js';
 import { DragTool, PressKeyTool } from './tools/browser/interaction.js';
 import { SaveAsPdfTool } from './tools/browser/output.js';
 import { ClickAndSwitchTabTool } from './tools/browser/interaction.js';
+import fs from "node:fs";
 
 // Global state
 let browser: Browser | undefined;
@@ -81,12 +82,14 @@ let selectTool: SelectTool;
 let hoverTool: HoverTool;
 let uploadFileTool: UploadFileTool;
 let evaluateTool: EvaluateTool;
+let expectTextTool: ExpectTextTool;
 let expectResponseTool: ExpectResponseTool;
 let assertResponseTool: AssertResponseTool;
 let customUserAgentTool: CustomUserAgentTool;
 let visibleTextTool: VisibleTextTool;
 let visibleHtmlTool: VisibleHtmlTool;
 let visibleTagTool: VisibleTagTool;
+let locatorTool: LocatorTool;
 
 let getRequestTool: GetRequestTool;
 let postRequestTool: PostRequestTool;
@@ -101,6 +104,7 @@ let dragTool: DragTool;
 let pressKeyTool: PressKeyTool;
 let saveAsPdfTool: SaveAsPdfTool;
 let clickAndSwitchTabTool: ClickAndSwitchTabTool;
+let runScriptTool: RunScriptTool;
 
 
 interface BrowserSettings {
@@ -151,6 +155,15 @@ async function registerConsoleMessage(page) {
       console.error(`[Playwright][Unhandled Rejection In Promise] ${message}\n${stack}`);
     });
   });
+}
+
+/**
+ * 为指定的 context 注册 initScripts
+ */
+async function registerExternalScripts(context: BrowserContext) {
+  const fullPath = new URL('./externalScript.js', import.meta.url);
+  const scriptContent = fs.readFileSync(fullPath, 'utf8');
+  await context.addInitScript(scriptContent);
 }
 
 /**
@@ -228,6 +241,8 @@ export async function ensureBrowser(browserSettings?: BrowserSettings) {
 
       page = await context.newPage();
 
+      await registerExternalScripts(context);
+
       // Register console message handler
       await registerConsoleMessage(page);
     }
@@ -238,7 +253,9 @@ export async function ensureBrowser(browserSettings?: BrowserSettings) {
       // Create a new page if the current one is invalid
       const context = browser.contexts()[0] || await browser.newContext();
       page = await context.newPage();
-      
+
+      await registerExternalScripts(context);
+
       // Re-register console message handler
       await registerConsoleMessage(page);
     }
@@ -294,6 +311,8 @@ export async function ensureBrowser(browserSettings?: BrowserSettings) {
     });
 
     page = await context.newPage();
+
+    await registerExternalScripts(context);
     
     await registerConsoleMessage(page);
     
@@ -327,12 +346,14 @@ function initializeTools(server: any) {
   if (!hoverTool) hoverTool = new HoverTool(server);
   if (!uploadFileTool) uploadFileTool = new UploadFileTool(server);
   if (!evaluateTool) evaluateTool = new EvaluateTool(server);
+  if (!expectTextTool) expectTextTool = new ExpectTextTool(server);
   if (!expectResponseTool) expectResponseTool = new ExpectResponseTool(server);
   if (!assertResponseTool) assertResponseTool = new AssertResponseTool(server);
   if (!customUserAgentTool) customUserAgentTool = new CustomUserAgentTool(server);
   if (!visibleTextTool) visibleTextTool = new VisibleTextTool(server);
   if (!visibleHtmlTool) visibleHtmlTool = new VisibleHtmlTool(server);
   if (!visibleTagTool) visibleTagTool = new VisibleTagTool(server);
+  if (!locatorTool) locatorTool = new LocatorTool(server);
   
   // API tools
   if (!getRequestTool) getRequestTool = new GetRequestTool(server);
@@ -348,6 +369,7 @@ function initializeTools(server: any) {
   if (!pressKeyTool) pressKeyTool = new PressKeyTool(server);
   if (!saveAsPdfTool) saveAsPdfTool = new SaveAsPdfTool(server);
   if (!clickAndSwitchTabTool) clickAndSwitchTabTool = new ClickAndSwitchTabTool(server);
+  if (!runScriptTool) runScriptTool = new RunScriptTool(server);
 }
 
 /**
@@ -507,6 +529,9 @@ export async function handleToolCall(
       case "playwright_evaluate":
         return await evaluateTool.execute(args, context);
 
+      case "playwright_expect_text":
+        return await expectTextTool.execute(args, context);
+
       case "playwright_expect_response":
         return await expectResponseTool.execute(args, context);
 
@@ -524,6 +549,9 @@ export async function handleToolCall(
 
       case "playwright_get_visible_tag":
         return await visibleTagTool.execute(args, context);
+
+      case "playwright_get_locator_by_tagid":
+        return await locatorTool.execute(args, context);
         
       // API tools
       case "playwright_get":
@@ -554,6 +582,8 @@ export async function handleToolCall(
         return await saveAsPdfTool.execute(args, context);
       case "playwright_click_and_switch_tab":
         return await clickAndSwitchTabTool.execute(args, context);
+      case "playwright_run_script":
+        return await runScriptTool.execute(args, context);
       
       default:
         return {

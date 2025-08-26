@@ -1,6 +1,8 @@
 import { BrowserToolBase } from './base.js';
 import { ToolContext, ToolResponse, createSuccessResponse, createErrorResponse } from '../common/types.js';
 import { setGlobalPage } from '../../toolHandler.js';
+import path from "node:path";
+import {pathToFileURL} from "node:url";
 /**
  * Tool for clicking elements on the page
  */
@@ -231,8 +233,45 @@ export class PressKeyTool extends BrowserToolBase {
       return createSuccessResponse(`Pressed key: ${args.key}`);
     });
   }
-} 
+}
 
+export class RunScriptTool extends BrowserToolBase {
+  async execute(args: any, context: ToolContext): Promise<ToolResponse> {
+    const scriptPath = args.scriptPath;
+    if (!scriptPath) {
+      return createErrorResponse("scriptPath 参数必填");
+    }
+
+    try {
+      // 解析绝对路径
+      const absPath = path.isAbsolute(scriptPath)
+          ? scriptPath
+          : path.join(process.cwd(), scriptPath);
+
+      // 动态导入脚本（要求脚本 export default function(page) {...}）
+      const scriptModule = await import(pathToFileURL(absPath).toString());
+      const scriptFn = scriptModule.default;
+
+      if (typeof scriptFn !== "function") {
+        return createErrorResponse("脚本文件必须 export default 一个函数(page) => Promise");
+      }
+
+      // 执行脚本
+      return this.safeExecute(context, async (page) => {
+        try {
+          await scriptFn(page);
+          return createSuccessResponse(`✅ 脚本执行成功: ${scriptPath}`);
+        } catch (e) {
+          return createSuccessResponse(`❌ 脚本执行失败: ${e}`);
+        }
+
+
+      });
+    } catch (err: any) {
+      return createErrorResponse(`执行脚本失败: ${err.message}`);
+    }
+  }
+}
 
 /**
  * Tool for switching browser tabs
