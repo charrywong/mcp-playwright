@@ -1,7 +1,54 @@
-import { resetBrowserState } from "../../toolHandler.js";
-import { ToolContext, ToolResponse, createErrorResponse, createSuccessResponse } from "../common/types.js";
-import { BrowserToolBase } from "./base.js";
+import {resetBrowserState} from "../../toolHandler.js";
+import {createErrorResponse, createSuccessResponse, ToolContext, ToolResponse} from "../common/types.js";
+import {BrowserToolBase} from "./base.js";
 import {ElementHandle} from "playwright";
+import {existsSync, readFileSync} from "fs"
+
+export interface VisibleTagConfig {
+  /** CSS selectors; tags use lowercase ('script', 'style'), containers like '.sidebar' */
+  excludedSelectors: string[];
+  /** keywords inside class names that start with 'icon-' */
+  iconClassKeywords: string[];
+  /** max length when taking direct text from a text node */
+  directTextMaxLen: number;
+}
+
+/** Read VisibleTagTool configuration from VISIBLE_TAG_CONFIG_PATH (required) */
+export function readVisibleTagConfig(): VisibleTagConfig {
+  const filePath = process.env.VISIBLE_TAG_CONFIG_PATH;
+  if (!filePath) {
+    throw new Error("VISIBLE_TAG_CONFIG_PATH is not set");
+  }
+
+  try {
+    if (!existsSync(filePath)) {
+      throw new Error(`Config file not found: ${filePath}`);
+    }
+    const fileContent = readFileSync(filePath, "utf-8");
+    const cfg = JSON.parse(fileContent);
+
+    if (!Array.isArray(cfg.excludedSelectors) || !Array.isArray(cfg.iconClassKeywords)) {
+      throw new Error(
+          "Invalid config: 'excludedSelectors' and 'iconClassKeywords' must be arrays."
+      );
+    }
+
+    const directTextMaxLen =
+        typeof cfg.directTextMaxLen === "number" && cfg.directTextMaxLen > 0
+            ? cfg.directTextMaxLen
+            : 10; // 合理兜底（不写死语义，但保证健壮）
+
+    return {
+      excludedSelectors: cfg.excludedSelectors,
+      iconClassKeywords: cfg.iconClassKeywords,
+      directTextMaxLen,
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Error reading VisibleTagTool config:", error);
+    throw error;
+  }
+}
 
 /**
  * Tool for getting the visible text content of the current page
@@ -203,135 +250,169 @@ export class VisibleTagTool extends BrowserToolBase {
     if (!context.browser || !context.browser.isConnected()) {
       resetBrowserState();
       return createErrorResponse(
-          'Browser is not connected. The connection has been reset - please retry your navigation.'
+          "Browser is not connected. The connection has been reset - please retry your navigation."
       );
     }
 
     if (!context.page || context.page.isClosed()) {
       return createErrorResponse(
-          'Page is not available or has been closed. Please retry your navigation.'
+          "Page is not available or has been closed. Please retry your navigation."
       );
     }
 
+    const config = readVisibleTagConfig();
+
     return this.safeExecute(context, async (page) => {
-      const result = await page.evaluate(() => {
-        const excludedTags = new Set(['SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK']);
-        const textIgnoreTags = new Set([])
-        const iconKeywords = ['add', 'delete', 'edit', 'close', 'more'];
-        const blackListParentTags = ['d-editor', '.devui-header-app-extra-header', '.dp-first-header', '.dp-second-sidebar', '.devui-right-sidebar-menu'];
-        const whiteLiseParentTags = [];
-
-        const results: Array<{ id: string; text: string }> = [];
-        let idCounter = 1; // 从 1 开始编号
-
-        const isInBlackListParentTags = (el: Element): boolean => {
-          return blackListParentTags.some(tag => el.closest(tag) !== null);
+      const result = await page.evaluate((cfg) => {
+        const { excludedSelectors, iconClassKeywords, directTextMaxLen } = cfg as {
+          excludedSelectors: string[];
+          iconClassKeywords: string[];
+          directTextMaxLen: number;
         };
 
-        const notInWhiteLiseParentTags = (el: Element): boolean => {
-          if (whiteLiseParentTags.length === 0) return false;
-          return whiteLiseParentTags.every(tag => el.closest(tag) == null);
+        // 命中自身或祖先任一 selector 则认为被排除
+        const isExcluded = (el: Element): boolean =>
+            excludedSelectors.some((sel) => el.closest(sel) !== null);
+
+        /**
+         * 尝试从元素的 placeholder/data-placeholder/name 中获取描述
+         * 主要用于富文本/占位场景（你之前说的“主要用于带 placeholder 或 name 的特殊元素”）
+         * 若命中返回 'TAG:值'，否则返回 null
+         */
+        const getPlaceholderOrNameText = (el: Element): string | null => {
+          // 注意：getAttribute 可能返回 null
+          const placeholder =
+              (el.getAttribute("placeholder") || el.getAttribute("data-placeholder") || "")
+                  .trim() || null;
+          const name = (el.getAttribute("name") || "").trim() || null;
+          const val = placeholder || name;
+          return val ? `${el.tagName}:${val}` : null;
         };
 
-        const getNormalElementText = (el) => {
-          // 普通元素有 placeholder 的场景，兼容quill
-          const text =  el.getAttribute('placeholder')?.trim()
-              || el.getAttribute('data-placeholder')?.trim()
-              || el.getAttribute('name')?.trim()
-              || null
-          return text ? el.tagName + ':' + text : null;
-        };
-
-        const getFormElementText = (el) => {
-          // 判断元素是否是表单元素
-          const isFormElement = ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.nodeName);
-          if (isFormElement) {
-            const text =  el.getAttribute('title')?.trim()
-                || el.getAttribute('id')?.trim()
-                || null
-            return text ? el.tagName + ':' + text : null;
+        /**
+         * 尝试从表单控件（input/textarea/select）获取描述（title 或 id）
+         * 若命中返回 'TAG:值'，否则返回 null
+         */
+        const getFormControlText = (el: Element): string | null => {
+          if (
+              el instanceof HTMLInputElement ||
+              el instanceof HTMLTextAreaElement ||
+              el instanceof HTMLSelectElement
+          ) {
+            const text =
+                (el.getAttribute("title") || "").trim() ||
+                (el.getAttribute("id") || "").trim() ||
+                null;
+            return text ? `${el.tagName}:${text}` : null;
           }
           return null;
         };
 
-        const getIconKeyword = (classList: DOMTokenList): string | null => {
+        /**
+         * 尝试识别 icon 类（类名以 icon- 开头且包含关键词）
+         * 若命中返回匹配到的 keyword 字符串，否则返回 null
+         */
+        const getIconClassText = (classList: DOMTokenList): string | null => {
           for (const cls of classList) {
-            if (cls.startsWith('icon-')) {
-              for (const keyword of iconKeywords) {
-                if (cls.includes(keyword)) {
-                  return keyword;
-                }
+            if (!cls || !cls.startsWith("icon-")) continue;
+            for (const kw of iconClassKeywords) {
+              if (cls.includes(kw)) return kw;
+            }
+          }
+          return null;
+        };
+
+        /**
+         * 获取元素的“直系文本节点”并截断（仅直系文本节点，避免深入子树）
+         */
+        const getDirectText = (el: Element): string | null => {
+          const nodes = el.childNodes;
+          for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+              const t = node.textContent.trim();
+              if (t) {
+                return t.slice(0, directTextMaxLen);
               }
             }
           }
           return null;
         };
 
-        const getDirectText = (el: Element): string | null => {
-          // 优先检查文本子节点
-          for (const node of Array.from(el.childNodes)) {
-            if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
-              return node.textContent.trim().slice(0, 10);
+        const isVisible = (el: Element): boolean => {
+          if (!(el instanceof HTMLElement)) return false;
+
+          if (el.getClientRects().length === 0) return false;
+
+          const style = getComputedStyle(el);
+          if (style.visibility === "hidden" || style.display === "none" || style.opacity === "0") {
+            return false;
+          }
+
+          return true;
+        };
+
+        const results: Array<{ id: string; text: string }> = [];
+        let idCounter = 1;
+
+        // 使用 TreeWalker 遍历所有元素（从 body 的第一个后代开始）
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+        let el = walker.nextNode() as Element | null;
+
+        while (el) {
+          if (!isVisible(el)) {
+            el = walker.nextNode() as Element | null;
+            continue;
+          }
+
+          // 1) 优先尝试三类匹配：placeholder/name、表单控件属性、icon 类
+          const placeholderText = getPlaceholderOrNameText(el);
+          const formText = placeholderText ? null : getFormControlText(el);
+          const iconText = placeholderText || formText ? null : getIconClassText(el.classList);
+
+          let markerText: string | null = placeholderText || formText || iconText;
+
+          // 2) 如果前三类都没命中，再看是否被 excluded（命中则跳过），否则取直系文本
+          if (!markerText) {
+            if (!isExcluded(el)) {
+              markerText = getDirectText(el);
             }
           }
 
-          // 两者都没有则返回null
-          return null;
-        };
-
-        const elements = document.querySelectorAll('body *');
-
-        elements.forEach((el: Element) => {
-          if (excludedTags.has(el.tagName)) return;
-
-          let markerText: string | null = null;
-
-          markerText = getNormalElementText(el);
-
-          if (!markerText) {
-            markerText = getFormElementText(el);
+          if (markerText) {
+            const id = String(idCounter++);
+            try {
+              el.setAttribute("data-tag-id", id);
+            } catch (err) {
+              // 某些元素可能是只读或抛错（防御性处理）
+            }
+            results.push({ id, text: markerText });
           }
 
-          if (!markerText) {
-            markerText = getIconKeyword(el.classList);
-          }
-
-          if (!markerText) {
-            if (textIgnoreTags.has(el.tagName)) return;
-            if (isInBlackListParentTags(el)) return;
-            if (notInWhiteLiseParentTags(el)) return;
-            markerText = getDirectText(el);
-          }
-
-          if (!markerText) return;
-
-          const id = String(idCounter++);
-          el.setAttribute('data-tag-id', id);
-
-          results.push({ id, text: markerText });
-        });
+          el = walker.nextNode() as Element | null;
+        }
 
         return results;
-      });
+      }, config);
 
       // 返回格式简化：id:text
-      const resultStr = result.map(r => `${r.id}:${r.text}`).join('\n');
+      const resultStr = result.map((r) => `${r.id}:${r.text}`).join("\n");
 
       return createSuccessResponse([
         `Tagged ${result.length} elements with data-tag-id`,
-        resultStr
+        resultStr,
       ]);
     });
   }
 }
 
 export class LocatorTool extends BrowserToolBase {
-  sanitizeSelectors(result: any): string {
+  sanitizeSelectors(result: any): string[] {
     const selectors: string[] = Array.isArray(result?.selectors)
         ? result.selectors
         : [result?.selector].filter(Boolean);
 
-    if (selectors.length === 0) return '';
+    if (selectors.length === 0) return [];
 
     // 判断是否含有不可见/异常字符（控制字符、私有区、特殊符号等）
     const hasBadChars = (sel: string) =>
@@ -344,23 +425,23 @@ export class LocatorTool extends BrowserToolBase {
     // 检查选择器是否有效（不能有 attr=""）
     const isValid = (sel: string) => !/=\s*""/.test(sel);
 
-    // 1️⃣ 优先返回没有坏字符的 selector
-    for (const sel of selectors) {
-      if (!hasBadChars(sel) && isValid(sel)) {
-        return sel;
-      }
+    // 清理所有 selector
+    const cleanedSelectors: string[] = selectors.map(sel => cleanSelector(sel));
+
+    // 选择优先的 selector（无坏字符且合法），或者清理后合法的第一个
+    let preferredIndex = selectors.findIndex(sel => !hasBadChars(sel) && isValid(sel));
+    if (preferredIndex === -1) {
+      preferredIndex = cleanedSelectors.findIndex(sel => isValid(sel) && sel.trim().length > 0);
     }
 
-    // 2️⃣ 如果都有坏字符 → 清理后尝试
-    for (const sel of selectors) {
-      const cleaned = cleanSelector(sel);
-      if (isValid(cleaned) && cleaned.trim().length > 0) {
-        return cleaned;
-      }
-    }
+    // fallback: 如果都不合法，优选就是第一个原始 selector
+    if (preferredIndex === -1) preferredIndex = 0;
 
-    // 3️⃣ 全部失败 → fallback
-    return selectors[0];
+    // 构建最终数组：优选的放第一位，其余按原始顺序
+    return [
+      cleanedSelectors[preferredIndex],
+      ...cleanedSelectors.filter((_, idx) => idx !== preferredIndex)
+    ];
   }
 
   /**
