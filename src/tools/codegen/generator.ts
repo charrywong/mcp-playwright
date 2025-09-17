@@ -70,6 +70,8 @@ export class PlaywrightGenerator {
         return this.generateFillStep(parameters);
       case 'playwright_click':
         return this.generateClickStep(parameters);
+      case 'playwright_press_key':
+        return this.generatePressKeyStep(parameters);
       case 'playwright_screenshot':
         return this.generateScreenshotStep(parameters);
       case 'playwright_expect_text':
@@ -110,6 +112,23 @@ export class PlaywrightGenerator {
     return `
     // Click element
     await page.click('${selector}');`;
+  }
+
+  private generatePressKeyStep(parameters: Record<string, unknown>): string {
+    const { selector, key } = parameters;
+    let scriptContent = ``;
+
+    if (selector) {
+      scriptContent = `
+    // Focus element
+    await page.waitForSelector('${selector}');
+    await page.focus('${selector}');`
+    }
+
+    scriptContent = scriptContent + `
+    // Press key
+    await page.keyboard.press('${key}');`
+    return scriptContent;
   }
 
   private generateScreenshotStep(parameters: Record<string, unknown>): string {
