@@ -11,6 +11,8 @@ export interface VisibleTagConfig {
   iconClassKeywords: string[];
   /** max length when taking direct text from a text node */
   directTextMaxLen: number;
+  /** special tag names that need explicit handling */
+  specialTagNames: string[];
 }
 
 /** Read VisibleTagTool configuration from VISIBLE_TAG_CONFIG_PATH (required) */
@@ -27,9 +29,13 @@ export function readVisibleTagConfig(): VisibleTagConfig {
     const fileContent = readFileSync(filePath, "utf-8");
     const cfg = JSON.parse(fileContent);
 
-    if (!Array.isArray(cfg.excludedSelectors) || !Array.isArray(cfg.iconClassKeywords)) {
+    if (
+        !Array.isArray(cfg.excludedSelectors) ||
+        !Array.isArray(cfg.iconClassKeywords) ||
+        !Array.isArray(cfg.specialTagNames)
+    ) {
       throw new Error(
-          "Invalid config: 'excludedSelectors' and 'iconClassKeywords' must be arrays."
+          "Invalid config: 'excludedSelectors', 'iconClassKeywords' and 'specialTagNames' must be arrays."
       );
     }
 
@@ -41,6 +47,7 @@ export function readVisibleTagConfig(): VisibleTagConfig {
     return {
       excludedSelectors: cfg.excludedSelectors,
       iconClassKeywords: cfg.iconClassKeywords,
+      specialTagNames: cfg.specialTagNames,
       directTextMaxLen,
     };
   } catch (error) {
@@ -264,15 +271,26 @@ export class VisibleTagTool extends BrowserToolBase {
 
     return this.safeExecute(context, async (page) => {
       const result = await page.evaluate((cfg) => {
-        const { excludedSelectors, iconClassKeywords, directTextMaxLen } = cfg as {
+        const {
+          excludedSelectors,
+          iconClassKeywords,
+          directTextMaxLen,
+          specialTagNames,
+        } = cfg as {
           excludedSelectors: string[];
           iconClassKeywords: string[];
           directTextMaxLen: number;
+          specialTagNames: string[];
         };
 
         // 命中自身或祖先任一 selector 则认为被排除
         const isExcluded = (el: Element): boolean =>
             excludedSelectors.some((sel) => el.closest(sel) !== null);
+
+        const getSpecialTagText = (el: Element): string | null => {
+          const tagName = el.tagName.toUpperCase();
+          return specialTagNames.some((t) => t.toUpperCase() === tagName) ? tagName : null;
+        };
 
         /**
          * 尝试从元素的 placeholder/data-placeholder/name 中获取描述
@@ -282,10 +300,12 @@ export class VisibleTagTool extends BrowserToolBase {
         const getPlaceholderOrNameText = (el: Element): string | null => {
           // 注意：getAttribute 可能返回 null
           const placeholder =
-              (el.getAttribute("placeholder") || el.getAttribute("data-placeholder") || "")
-                  .trim() || null;
+              (el.getAttribute("placeholder") ||
+                  el.getAttribute("data-placeholder") ||
+                  "").trim() || null;
+          const aria = (el.getAttribute("aria-label") || "").trim() || null;
           const name = (el.getAttribute("name") || "").trim() || null;
-          const val = placeholder || name;
+          const val = placeholder || aria || name;
           return val ? `${el.tagName}:${val}` : null;
         };
 
@@ -312,8 +332,8 @@ export class VisibleTagTool extends BrowserToolBase {
          * 尝试识别 icon 类（类名以 icon- 开头且包含关键词）
          * 若命中返回匹配到的 keyword 字符串，否则返回 null
          */
-        const getIconClassText = (classList: DOMTokenList): string | null => {
-          for (const cls of classList) {
+        const getIconClassText = (el: Element): string | null => {
+          for (const cls of el.classList) {
             if (!cls || !cls.startsWith("icon-")) continue;
             for (const kw of iconClassKeywords) {
               if (cls.includes(kw)) return kw;
@@ -341,15 +361,13 @@ export class VisibleTagTool extends BrowserToolBase {
 
         const isVisible = (el: Element): boolean => {
           if (!(el instanceof HTMLElement)) return false;
-
           if (el.getClientRects().length === 0) return false;
-
           const style = getComputedStyle(el);
-          if (style.visibility === "hidden" || style.display === "none" || style.opacity === "0") {
-            return false;
-          }
-
-          return true;
+          return !(
+              style.visibility === "hidden" ||
+              style.display === "none" ||
+              style.opacity === "0"
+          );
         };
 
         const results: Array<{ id: string; text: string }> = [];
@@ -366,17 +384,15 @@ export class VisibleTagTool extends BrowserToolBase {
           }
 
           // 1) 优先尝试三类匹配：placeholder/name、表单控件属性、icon 类
-          const placeholderText = getPlaceholderOrNameText(el);
-          const formText = placeholderText ? null : getFormControlText(el);
-          const iconText = placeholderText || formText ? null : getIconClassText(el.classList);
-
-          let markerText: string | null = placeholderText || formText || iconText;
+          let markerText: string | null =
+              getSpecialTagText(el) ||
+              getPlaceholderOrNameText(el) ||
+              getFormControlText(el) ||
+              getIconClassText(el);
 
           // 2) 如果前三类都没命中，再看是否被 excluded（命中则跳过），否则取直系文本
-          if (!markerText) {
-            if (!isExcluded(el)) {
-              markerText = getDirectText(el);
-            }
+          if (!markerText && !isExcluded(el)) {
+            markerText = getDirectText(el);
           }
 
           if (markerText) {
